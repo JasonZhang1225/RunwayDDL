@@ -1,0 +1,116 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:runway_ddl/core/constants/app_colors.dart';
+import 'package:runway_ddl/data/models/item.dart';
+
+class TaskCard extends StatelessWidget {
+  final Item item;
+  final VoidCallback? onTap;
+  final VoidCallback? onToggleStatus;
+
+  const TaskCard({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.onToggleStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap ?? () => context.push('/items/${item.id}'),
+      child: Container(
+        width: 112,
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.divider),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadow.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (onToggleStatus != null)
+                  GestureDetector(
+                    onTap: onToggleStatus,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _getPriorityColor(),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(right: 6, top: 5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _getPriorityColor(),
+                    ),
+                  ),
+                Expanded(
+                  child: Text(
+                    item.title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: item.status == ItemStatus.completed
+                          ? AppColors.textPrimary.withOpacity(0.5)
+                          : AppColors.textPrimary,
+                      decoration: item.status == ItemStatus.completed
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            if (item.dueTime != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                item.dueTime!,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _getPriorityColor() {
+    switch (item.priority) {
+      case ItemPriority.high:
+        return AppColors.highPriority;
+      case ItemPriority.medium:
+        return AppColors.mediumPriority;
+      case ItemPriority.low:
+        return AppColors.lowPriority;
+    }
+  }
+}

@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 import 'package:runway_ddl/presentation/pages/home/home_page.dart';
 import 'package:runway_ddl/presentation/pages/category/category_page.dart';
 import 'package:runway_ddl/presentation/pages/item_detail/item_detail_page.dart';
+import 'package:runway_ddl/presentation/pages/add_item/add_item_page.dart';
 import 'package:runway_ddl/presentation/pages/settings/settings_page.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -13,6 +14,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: '/categories',
       builder: (context, state) => const CategoryPage(),
+    ),
+    GoRoute(
+      path: '/items/new',
+      builder: (context, state) => const AddItemPage(),
     ),
     GoRoute(
       path: '/items/:id',
