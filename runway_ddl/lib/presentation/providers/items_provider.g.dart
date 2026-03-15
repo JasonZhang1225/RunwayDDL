@@ -310,7 +310,7 @@ final historyItemsProvider = AutoDisposeProvider<List<Item>>.internal(
 );
 
 typedef HistoryItemsRef = AutoDisposeProviderRef<List<Item>>;
-String _$itemsHash() => r'cf6bf35632e2750af2360ef72f2c4aa31e8e584f';
+String _$itemsHash() => r'dcd0b1a888c703389c2cc5684fc11f6c3b8d072b';
 
 /// See also [Items].
 @ProviderFor(Items)

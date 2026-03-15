@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runway_ddl/core/constants/app_colors.dart';
 import 'package:runway_ddl/data/models/item.dart';
+import 'package:runway_ddl/data/models/item_priority_extension.dart';
 
 class TaskCard extends StatelessWidget {
   final Item item;
@@ -46,13 +47,12 @@ class TaskCard extends StatelessWidget {
                   GestureDetector(
                     onTap: onToggleStatus,
                     child: Container(
-                      width: 18,
                       height: 18,
                       margin: const EdgeInsets.only(right: 6),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _getPriorityColor(),
+                          color: item.priority.color,
                           width: 2,
                         ),
                       ),
@@ -65,7 +65,7 @@ class TaskCard extends StatelessWidget {
                     margin: const EdgeInsets.only(right: 6, top: 5),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: _getPriorityColor(),
+                      color: item.priority.color,
                     ),
                   ),
                 Expanded(
@@ -101,16 +101,5 @@ class TaskCard extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _getPriorityColor() {
-    switch (item.priority) {
-      case ItemPriority.high:
-        return AppColors.highPriority;
-      case ItemPriority.medium:
-        return AppColors.mediumPriority;
-      case ItemPriority.low:
-        return AppColors.lowPriority;
-    }
   }
 }

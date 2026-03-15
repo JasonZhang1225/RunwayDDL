@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import 'package:runway_ddl/data/models/item.dart';
 import 'package:runway_ddl/data/repositories/item_repository.dart';
 import 'package:runway_ddl/presentation/providers/categories_provider.dart';
+import 'package:runway_ddl/presentation/providers/image_picker_provider.dart';
 
 part 'items_provider.g.dart';
 
@@ -46,14 +47,23 @@ class Items extends _$Items {
     ref.invalidateSelf();
   }
 
-  Future<void> updateItem(Item item) async {
+  Future<void> updateItem(Item item, {String? oldImagePath}) async {
     final repo = ref.read(itemRepositoryProvider);
+    if (oldImagePath != null && oldImagePath != item.imagePath) {
+      final imageService = ref.read(imagePickerProvider);
+      await imageService.deleteImage(oldImagePath);
+    }
     await repo.update(item);
     ref.invalidateSelf();
   }
 
   Future<void> deleteItem(String id) async {
     final repo = ref.read(itemRepositoryProvider);
+    final item = await repo.getById(id);
+    if (item?.imagePath != null) {
+      final imageService = ref.read(imagePickerProvider);
+      await imageService.deleteImage(item!.imagePath!);
+    }
     await repo.delete(id);
     ref.invalidateSelf();
   }

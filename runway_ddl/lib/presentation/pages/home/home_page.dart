@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:runway_ddl/core/constants/app_colors.dart';
 import 'package:runway_ddl/presentation/providers/home_data_provider.dart';
 import 'package:runway_ddl/presentation/providers/items_provider.dart';
+import 'package:runway_ddl/presentation/providers/view_mode_provider.dart';
 import 'package:runway_ddl/presentation/pages/home/widgets/overdue_section.dart';
 import 'package:runway_ddl/presentation/pages/home/widgets/history_section.dart';
 import 'package:runway_ddl/presentation/pages/home/widgets/date_stream_matrix.dart';
@@ -27,11 +28,18 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final homeData = ref.watch(homeDataProvider);
+    final viewMode = ref.watch(viewModeNotifierProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('RunwayDDL'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            onPressed: () =>
+                ref.read(viewModeNotifierProvider.notifier).toggle(),
+            tooltip: '切换视图',
+          ),
           IconButton(
             icon: const Icon(Icons.category_outlined),
             onPressed: () => context.push('/categories'),
@@ -42,7 +50,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ],
       ),
-      body: _buildBody(homeData),
+      body: _buildBody(homeData, viewMode),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddItemSheet(context),
         child: const Icon(Icons.add),
@@ -50,7 +58,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
-  Widget _buildBody(HomePageData homeData) {
+  Widget _buildBody(HomePageData homeData, ViewMode viewMode) {
     if (homeData.isEmpty) {
       return _buildEmptyState();
     }
@@ -85,15 +93,16 @@ class _HomePageState extends ConsumerState<HomePage> {
           ),
         ),
         SliverToBoxAdapter(
-          child: DateStreamMatrix(
-            data: homeData.mainStreamMatrix,
-            horizontalController: _horizontalScrollController,
-            onToggleStatus: (item) => _toggleItemStatus(item.id),
+          child: ViewModeScope(
+            viewMode: viewMode,
+            child: DateStreamMatrixWithMode(
+              data: homeData.mainStreamMatrix,
+              horizontalController: _horizontalScrollController,
+              onToggleStatus: (item) => _toggleItemStatus(item.id),
+            ),
           ),
         ),
-        const SliverToBoxAdapter(
-          child: SizedBox(height: 80),
-        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 80)),
       ],
     );
   }
@@ -111,10 +120,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           const SizedBox(height: 16),
           const Text(
             '暂无事项',
-            style: TextStyle(
-              fontSize: 18,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 18, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 8),
           Text(

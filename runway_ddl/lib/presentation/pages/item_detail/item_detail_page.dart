@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,7 +7,9 @@ import 'package:runway_ddl/core/constants/app_colors.dart';
 import 'package:runway_ddl/core/utils/date_utils.dart' as app_utils;
 import 'package:runway_ddl/data/models/category.dart';
 import 'package:runway_ddl/data/models/item.dart';
+import 'package:runway_ddl/data/models/item_priority_extension.dart';
 import 'package:runway_ddl/presentation/providers/categories_provider.dart';
+import 'package:runway_ddl/presentation/providers/image_picker_provider.dart';
 import 'package:runway_ddl/presentation/providers/items_provider.dart';
 
 class ItemDetailPage extends ConsumerStatefulWidget {
@@ -28,6 +32,7 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   String? _selectedTime;
   String? _selectedCategoryId;
   ItemPriority? _selectedPriority;
+  String? _selectedImagePath;
 
   @override
   void dispose() {
@@ -49,9 +54,7 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   Widget _buildNotFound() {
     return Scaffold(
       appBar: AppBar(title: const Text('事项详情')),
-      body: const Center(
-        child: Text('事项不存在'),
-      ),
+      body: const Center(child: Text('事项不存在')),
     );
   }
 
@@ -139,9 +142,35 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              item.description!,
-              style: const TextStyle(fontSize: 16),
+            Text(item.description!, style: const TextStyle(fontSize: 16)),
+          ],
+          if (item.imagePath != null && item.imagePath!.isNotEmpty) ...[
+            const Divider(height: 32),
+            const Text(
+              '图片附件',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _showImagePreview(item.imagePath!),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(item.imagePath!),
+                  width: double.infinity,
+                  height: 200,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    height: 100,
+                    color: Colors.grey[200],
+                    child: const Center(child: Text('图片加载失败')),
+                  ),
+                ),
+              ),
             ),
           ],
           const Divider(height: 32),
@@ -154,7 +183,11 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   Widget _buildStatusIndicator(Item item) {
     final (text, color, bgColor) = switch (item.status) {
       ItemStatus.pending => ('待完成', AppColors.primary, AppColors.primaryLight),
-      ItemStatus.completed => ('已完成', AppColors.completed, AppColors.completedBackground),
+      ItemStatus.completed => (
+        '已完成',
+        AppColors.completed,
+        AppColors.completedBackground,
+      ),
     };
 
     return Container(
@@ -183,7 +216,8 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
       } catch (_) {}
     }
 
-    final (priorityLabel, priorityColor) = _getPriorityInfo(item.priority);
+    final priorityLabel = item.priority.label;
+    final priorityColor = item.priority.color;
 
     return Wrap(
       spacing: 16,
@@ -199,10 +233,7 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
           label: app_utils.DateUtils.formatDateShort(item.dueDate),
         ),
         if (item.dueTime != null)
-          _buildMetaItem(
-            icon: Icons.access_time,
-            label: item.dueTime!,
-          ),
+          _buildMetaItem(icon: Icons.access_time, label: item.dueTime!),
         _buildMetaItem(
           icon: Icons.flag_outlined,
           label: '$priorityLabel优先级',
@@ -239,27 +270,18 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
       children: [
         Text(
           '创建时间: ${_formatDateTime(item.createdAt)}',
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 4),
         Text(
           '最后更新: ${_formatDateTime(item.updatedAt)}',
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
         ),
         if (item.completedAt != null) ...[
           const SizedBox(height: 4),
           Text(
             '完成时间: ${_formatDateTime(item.completedAt!)}',
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.completed,
-            ),
+            style: const TextStyle(fontSize: 12, color: AppColors.completed),
           ),
         ],
       ],
@@ -269,6 +291,19 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   String _formatDateTime(DateTime dt) {
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')} '
         '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _showImagePreview(String imagePath) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4.0,
+          child: Image.file(File(imagePath)),
+        ),
+      ),
+    );
   }
 
   Widget _buildEditMode(Item item) {
@@ -301,7 +336,7 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
           categoriesAsync.when(
             data: (categories) => _buildCategoryDropdown(categories),
             loading: () => const CircularProgressIndicator(),
-            error: (_, __) => const Text('加载分类失败'),
+            error: (_, _) => const Text('加载分类失败'),
           ),
           const SizedBox(height: 16),
           _buildDateField(),
@@ -320,6 +355,8 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
             maxLines: 4,
             maxLength: 500,
           ),
+          const SizedBox(height: 16),
+          _buildImageSelector(),
           const SizedBox(height: 24),
           Row(
             children: [
@@ -351,12 +388,13 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
       _selectedTime ??= item.dueTime;
       _selectedCategoryId ??= item.categoryId;
       _selectedPriority ??= item.priority;
+      _selectedImagePath ??= item.imagePath;
     }
   }
 
   Widget _buildCategoryDropdown(List<Category> categories) {
     return DropdownButtonFormField<String>(
-      value: _selectedCategoryId,
+      initialValue: _selectedCategoryId,
       decoration: const InputDecoration(
         labelText: '分类 *',
         prefixIcon: Icon(Icons.category_outlined),
@@ -498,7 +536,8 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: ItemPriority.values.map((priority) {
           final isSelected = _selectedPriority == priority;
-          final (label, color) = _getPriorityInfo(priority);
+          final label = priority.label;
+          final color = priority.color;
 
           return GestureDetector(
             onTap: () {
@@ -524,7 +563,9 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
                   label,
                   style: TextStyle(
                     color: isSelected ? color : AppColors.textSecondary,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -535,14 +576,79 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
     );
   }
 
-  (String, Color) _getPriorityInfo(ItemPriority priority) {
-    switch (priority) {
-      case ItemPriority.high:
-        return ('高', AppColors.highPriority);
-      case ItemPriority.medium:
-        return ('中', AppColors.mediumPriority);
-      case ItemPriority.low:
-        return ('低', AppColors.lowPriority);
+  Widget _buildImageSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '图片附件',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_selectedImagePath != null && _selectedImagePath!.isNotEmpty) ...[
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              File(_selectedImagePath!),
+              width: double.infinity,
+              height: 150,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                height: 100,
+                color: Colors.grey[200],
+                child: const Center(child: Text('图片加载失败')),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.image_outlined, size: 18),
+                  label: const Text('更换图片'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _selectedImagePath = null;
+                    });
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('删除图片'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.overdue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ] else ...[
+          OutlinedButton.icon(
+            onPressed: _pickImage,
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: const Text('添加图片'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final imageService = ref.read(imagePickerProvider);
+    final imagePath = await imageService.pickFromGallery();
+    if (imagePath != null) {
+      setState(() {
+        _selectedImagePath = imagePath;
+      });
     }
   }
 
@@ -638,14 +744,16 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   Future<void> _saveChanges() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请选择截止日期')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请选择截止日期')));
       return;
     }
 
     final item = ref.read(itemByIdProvider(widget.itemId));
     if (item == null) return;
+
+    final oldImagePath = item.imagePath;
 
     final updatedItem = Item(
       id: item.id,
@@ -658,22 +766,24 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
       dueTime: _selectedTime,
       priority: _selectedPriority ?? ItemPriority.medium,
       status: item.status,
-      imagePath: item.imagePath,
+      imagePath: _selectedImagePath,
       createdAt: item.createdAt,
       updatedAt: DateTime.now(),
       completedAt: item.completedAt,
     );
 
-    await ref.read(itemsProvider.notifier).updateItem(updatedItem);
+    await ref
+        .read(itemsProvider.notifier)
+        .updateItem(updatedItem, oldImagePath: oldImagePath);
 
     setState(() {
       _isEditing = false;
     });
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('保存成功')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('保存成功')));
     }
   }
 }

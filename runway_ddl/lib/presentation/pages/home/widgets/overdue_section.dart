@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runway_ddl/core/constants/app_colors.dart';
 import 'package:runway_ddl/data/models/item.dart';
+import 'package:runway_ddl/data/models/item_priority_extension.dart';
 import 'package:runway_ddl/presentation/pages/home/widgets/collapsible_section.dart';
 import 'package:runway_ddl/core/utils/date_utils.dart' as app_utils;
 
@@ -155,25 +156,12 @@ class _OverdueItemCard extends StatelessWidget {
   }
 
   Widget _buildPriorityDot() {
-    Color color;
-    switch (item.priority) {
-      case ItemPriority.high:
-        color = AppColors.highPriority;
-        break;
-      case ItemPriority.medium:
-        color = AppColors.mediumPriority;
-        break;
-      case ItemPriority.low:
-        color = AppColors.lowPriority;
-        break;
-    }
-
     return Container(
       width: 8,
       height: 8,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: color,
+        color: item.priority.color,
       ),
     );
   }

@@ -1,33 +1,34 @@
 # RunwayDDL 技术规格说明书
 
 **版本日期**：2026-03-14
-**基于文档**：[PRODUCT.md](./PRODUCT.md)、[RULES.md](./RULES.md)、[FREEZE_DECISIONS.md](./FREEZE_DECISIONS.md)
+**基于文档**：[PRODUCT.md](./PRODUCT.md)、[RULES.md](./RULES.md)、[FREEZE\_DECISIONS.md](./FREEZE_DECISIONS.md)
 **适用范围**：Alpha 阶段开发
 **文档集**：Alpha Baseline 1
 
----
+***
 
 ## 文档说明
 
 本文档为 RunwayDDL 的技术实现规格，包含：
+
 - 技术栈选型与架构设计
 - 数据模型与存储方案
 - 核心模块划分与接口定义
 - 关键代码模式与最佳实践
 
----
+***
 
 ## A. 技术栈
 
 ### A.1 核心框架
 
-| 组件 | 选型 | 版本 | 说明 |
-|------|------|------|------|
-| 框架 | Flutter | 3.16+ | 跨平台 UI 框架 |
-| 语言 | Dart | 3.2+ | 强类型语言 |
-| 状态管理 | Riverpod | 2.4+ | 响应式状态管理 |
-| 本地存储 | Hive | 2.2+ | 轻量级 NoSQL 数据库 |
-| 路由 | go_router | 13.0+ | 声明式路由 |
+| 组件   | 选型         | 版本    | 说明            |
+| ---- | ---------- | ----- | ------------- |
+| 框架   | Flutter    | 3.16+ | 跨平台 UI 框架     |
+| 语言   | Dart       | 3.2+  | 强类型语言         |
+| 状态管理 | Riverpod   | 2.4+  | 响应式状态管理       |
+| 本地存储 | Hive       | 2.2+  | 轻量级 NoSQL 数据库 |
+| 路由   | go\_router | 13.0+ | 声明式路由         |
 
 ### A.2 依赖包
 
@@ -78,13 +79,13 @@ dev_dependencies:
 
 ### A.3 AI 接入
 
-| 服务 | 用途 | API |
-|------|------|-----|
-| 通义千问 | 文本解析 | qwen-turbo / qwen-plus |
-| 通义千问 VL | 图片解析 | qwen-vl-plus |
+| 服务       | 用途      | API                    |
+| -------- | ------- | ---------------------- |
+| 通义千问     | 文本解析    | qwen-turbo / qwen-plus |
+| 通义千问 VL  | 图片解析    | qwen-vl-plus           |
 | 文心一言（备选） | 文本/图片解析 | ERNIE-Bot / ERNIE-ViLG |
 
----
+***
 
 ## B. 项目结构
 
@@ -162,7 +163,7 @@ lib/
     └── ...
 ```
 
----
+***
 
 ## C. 数据模型
 
@@ -331,7 +332,7 @@ class MatrixData {
 }
 ```
 
----
+***
 
 ## D. 核心模块设计
 
@@ -958,7 +959,7 @@ class MatrixWidget extends ConsumerWidget {
 }
 ```
 
----
+***
 
 ## E. 存储方案
 
@@ -1021,7 +1022,7 @@ class DataMigration {
 }
 ```
 
----
+***
 
 ## F. 关键代码模式
 
@@ -1107,7 +1108,7 @@ HomePageData groupItemsForHome(List<Item> items, List<Category> categories) {
 }
 ```
 
----
+***
 
 ## G. 性能优化
 
@@ -1154,7 +1155,7 @@ class Items extends _$Items {
 }
 ```
 
----
+***
 
 ## H. 测试策略
 
@@ -1252,7 +1253,7 @@ void main() {
 }
 ```
 
----
+***
 
 ## I. 部署配置
 
@@ -1282,22 +1283,23 @@ AI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 <string>需要相册权限来选择任务相关图片</string>
 ```
 
----
+***
 
 ## J. 技术债务追踪
 
-| 债务项 | 影响 | 计划解决版本 |
-|--------|------|--------------|
-| 本地存储无云端同步 | 换设备数据丢失 | v1.0 |
-| AI 准确率依赖第三方 | 解析结果不稳定 | 持续优化 |
-| 大量分类时性能下降 | 滚动卡顿 | Beta |
-| 图片未加密存储 | 隐私风险 | v1.0 |
+| 债务项         | 影响      | 计划解决版本 |
+| ----------- | ------- | ------ |
+| 本地存储无云端同步   | 换设备数据丢失 | v1.0   |
+| AI 准确率依赖第三方 | 解析结果不稳定 | 持续优化   |
+| 大量分类时性能下降   | 滚动卡顿    | Beta   |
+| 图片未加密存储     | 隐私风险    | v1.0   |
 
----
+***
 
 **文档结束**
 
 **版本记录**：
 
-- 历史版本归档于 `former/history/` 目录
-- 当前版本基于冻结裁决整合，详见 [FREEZE_DECISIONS.md](./FREEZE_DECISIONS.md)
+- 历史版本归档于 `archieve/history/` 目录
+- 当前版本基于冻结裁决整合，详见 [FREEZE\_DECISIONS.md](./FREEZE_DECISIONS.md)
+

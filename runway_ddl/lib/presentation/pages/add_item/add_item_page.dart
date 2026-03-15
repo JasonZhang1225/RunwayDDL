@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:runway_ddl/core/constants/app_colors.dart';
+import 'package:runway_ddl/core/utils/category_matcher.dart';
 import 'package:runway_ddl/core/utils/date_utils.dart' as app_utils;
 import 'package:runway_ddl/data/models/category.dart';
 import 'package:runway_ddl/data/models/item.dart';
+import 'package:runway_ddl/data/models/parse_result.dart';
 import 'package:runway_ddl/presentation/providers/categories_provider.dart';
 import 'package:runway_ddl/presentation/providers/items_provider.dart';
+import 'package:runway_ddl/presentation/pages/add_item/widgets/quick_input_tab.dart';
+import 'package:runway_ddl/presentation/pages/add_item/widgets/image_input_tab.dart';
 
 class AddItemPage extends ConsumerStatefulWidget {
   const AddItemPage({super.key});
@@ -15,7 +19,11 @@ class AddItemPage extends ConsumerStatefulWidget {
   ConsumerState<AddItemPage> createState() => _AddItemPageState();
 }
 
-class _AddItemPageState extends ConsumerState<AddItemPage> {
+class _AddItemPageState extends ConsumerState<AddItemPage>
+    with TickerProviderStateMixin {
+  late TabController _mainTabController;
+  late TabController _quickInputTabController;
+
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -28,7 +36,16 @@ class _AddItemPageState extends ConsumerState<AddItemPage> {
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _mainTabController = TabController(length: 2, vsync: this);
+    _quickInputTabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
   void dispose() {
+    _mainTabController.dispose();
+    _quickInputTabController.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -42,41 +59,115 @@ class _AddItemPageState extends ConsumerState<AddItemPage> {
       appBar: AppBar(
         title: const Text('添加事项'),
         actions: [
-          TextButton(
-            onPressed: _isLoading ? null : _createItem,
-            child: _isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('创建'),
+          AnimatedBuilder(
+            animation: _mainTabController,
+            builder: (context, child) {
+              if (_mainTabController.index == 0) {
+                return TextButton(
+                  onPressed: _isLoading ? null : _createItem,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('创建'),
+                );
+              }
+              return const SizedBox.shrink();
+            },
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _buildTitleField(),
-            const SizedBox(height: 16),
-            categoriesAsync.when(
-              data: (categories) => _buildCategoryDropdown(categories),
-              loading: () => const CircularProgressIndicator(),
-              error: (_, __) => const Text('加载分类失败'),
+      body: Column(
+        children: [
+          _buildMainTabBar(),
+          Expanded(
+            child: TabBarView(
+              controller: _mainTabController,
+              children: [
+                _buildManualInputTab(categoriesAsync),
+                _buildQuickInputTab(),
+              ],
             ),
-            const SizedBox(height: 16),
-            _buildDateField(),
-            const SizedBox(height: 16),
-            _buildTimeField(),
-            const SizedBox(height: 16),
-            _buildPrioritySelector(),
-            const SizedBox(height: 16),
-            _buildDescriptionField(),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildMainTabBar() {
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      ),
+      child: TabBar(
+        controller: _mainTabController,
+        labelColor: AppColors.primary,
+        unselectedLabelColor: AppColors.textSecondary,
+        indicatorColor: AppColors.primary,
+        tabs: const [
+          Tab(text: '手动添加'),
+          Tab(text: '快捷添加'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManualInputTab(AsyncValue<List<Category>> categoriesAsync) {
+    return Form(
+      key: _formKey,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildTitleField(),
+          const SizedBox(height: 16),
+          categoriesAsync.when(
+            data: (categories) => _buildCategoryDropdown(categories),
+            loading: () => const CircularProgressIndicator(),
+            error: (_, _) => const Text('加载分类失败'),
+          ),
+          const SizedBox(height: 16),
+          _buildDateField(),
+          const SizedBox(height: 16),
+          _buildTimeField(),
+          const SizedBox(height: 16),
+          _buildPrioritySelector(),
+          const SizedBox(height: 16),
+          _buildDescriptionField(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickInputTab() {
+    return Column(
+      children: [
+        Container(
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.divider)),
+          ),
+          child: TabBar(
+            controller: _quickInputTabController,
+            labelColor: AppColors.primary,
+            unselectedLabelColor: AppColors.textSecondary,
+            indicatorColor: AppColors.primary,
+            tabs: const [
+              Tab(text: '文本输入'),
+              Tab(text: '图片输入'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _quickInputTabController,
+            children: [
+              QuickInputTab(onParsed: _createItemFromParseResult),
+              ImageInputTab(onParsed: _createItemFromParseResultWithImage),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -103,7 +194,7 @@ class _AddItemPageState extends ConsumerState<AddItemPage> {
 
   Widget _buildCategoryDropdown(List<Category> categories) {
     return DropdownButtonFormField<String>(
-      value: _selectedCategoryId,
+      initialValue: _selectedCategoryId,
       decoration: const InputDecoration(
         labelText: '分类 *',
         prefixIcon: Icon(Icons.category_outlined),
@@ -269,7 +360,9 @@ class _AddItemPageState extends ConsumerState<AddItemPage> {
                   label,
                   style: TextStyle(
                     color: isSelected ? color : AppColors.textSecondary,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -319,7 +412,9 @@ class _AddItemPageState extends ConsumerState<AddItemPage> {
     });
 
     try {
-      await ref.read(itemsProvider.notifier).createItem(
+      await ref
+          .read(itemsProvider.notifier)
+          .createItem(
             title: _titleController.text,
             dueDate: _selectedDate,
             categoryId: _selectedCategoryId,
@@ -335,9 +430,9 @@ class _AddItemPageState extends ConsumerState<AddItemPage> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('创建失败: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('创建失败: $e')));
       }
     } finally {
       if (mounted) {
@@ -346,5 +441,63 @@ class _AddItemPageState extends ConsumerState<AddItemPage> {
         });
       }
     }
+  }
+
+  Future<void> _createItemFromParseResult(ParseResult result) async {
+    try {
+      await ref
+          .read(itemsProvider.notifier)
+          .createItem(
+            title: result.title ?? '未命名事项',
+            dueDate: result.date ?? DateTime.now(),
+            categoryId: _getRecommendedCategoryId(result.categoryHint),
+            dueTime: result.time,
+            priority: result.priority,
+          );
+
+      if (mounted) {
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('创建失败: $e')));
+      }
+    }
+  }
+
+  Future<void> _createItemFromParseResultWithImage(
+    ParseResult result,
+    String? imagePath,
+  ) async {
+    try {
+      await ref
+          .read(itemsProvider.notifier)
+          .createItem(
+            title: result.title ?? '未命名事项',
+            dueDate: result.date ?? DateTime.now(),
+            categoryId: _getRecommendedCategoryId(result.categoryHint),
+            dueTime: result.time,
+            priority: result.priority,
+            imagePath: imagePath,
+          );
+
+      if (mounted) {
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('创建失败: $e')));
+      }
+    }
+  }
+
+  String _getRecommendedCategoryId(String? hint) {
+    final categories = ref.read(categoriesProvider).valueOrNull ?? [];
+    final category = CategoryMatcher.findRecommendedCategory(hint, categories);
+    return category?.id ?? 'uncategorized';
   }
 }
