@@ -1,5 +1,4 @@
 import '../../data/models/category.dart';
-import '../../data/models/parse_result.dart';
 
 const Map<String, String> _categoryKeywords = {
   '作业': '个人作业',
@@ -19,6 +18,28 @@ const Map<String, String> _categoryKeywords = {
 };
 
 class CategoryMatcher {
+  static Category? findCategoryByNameHint(
+    String? hint,
+    List<Category> categories,
+  ) {
+    if (hint == null || hint.isEmpty) {
+      return null;
+    }
+
+    final normalizedHint = hint.trim().toLowerCase();
+
+    try {
+      return categories.firstWhere(
+        (category) =>
+            category.name.toLowerCase() == normalizedHint ||
+            category.name.toLowerCase().contains(normalizedHint) ||
+            normalizedHint.contains(category.name.toLowerCase()),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   static String? matchCategoryByKeyword(String? hint) {
     if (hint == null || hint.isEmpty) {
       return null;
@@ -33,7 +54,15 @@ class CategoryMatcher {
     return null;
   }
 
-  static Category? findRecommendedCategory(String? hint, List<Category> categories) {
+  static Category? findRecommendedCategory(
+    String? hint,
+    List<Category> categories,
+  ) {
+    final matchedByName = findCategoryByNameHint(hint, categories);
+    if (matchedByName != null) {
+      return matchedByName;
+    }
+
     final categoryName = matchCategoryByKeyword(hint);
     if (categoryName == null) {
       return null;
@@ -46,26 +75,5 @@ class CategoryMatcher {
     } catch (e) {
       return null;
     }
-  }
-
-  static double calculateConfidence(String? hint, ParseResult result) {
-    double score = 0.0;
-
-    if (result.title != null && result.title!.isNotEmpty) {
-      score += 0.3;
-    }
-
-    if (result.date != null) {
-      score += 0.3;
-    }
-
-    if (result.categoryHint != null && result.categoryHint!.isNotEmpty) {
-      final matchedCategory = matchCategoryByKeyword(result.categoryHint);
-      if (matchedCategory != null) {
-        score += 0.4;
-      }
-    }
-
-    return score.clamp(0.0, 1.0);
   }
 }

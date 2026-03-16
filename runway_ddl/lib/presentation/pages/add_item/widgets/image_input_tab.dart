@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:runway_ddl/core/constants/app_colors.dart';
+import 'package:runway_ddl/core/utils/category_matcher.dart';
 import 'package:runway_ddl/core/utils/date_utils.dart' as app_utils;
 import 'package:runway_ddl/data/models/category.dart';
 import 'package:runway_ddl/data/models/item.dart';
@@ -36,24 +37,49 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Future<void> _pickFromGallery() async {
-    final service = ref.read(imagePickerProvider);
-    final path = await service.pickFromGallery();
-    if (path != null && mounted) {
-      setState(() {
-        _imagePath = path;
-        _parseResult = null;
-      });
+    try {
+      final service = ref.read(imagePickerProvider);
+      final path = await service.pickFromGallery();
+      if (path != null && mounted) {
+        setState(() {
+          _imagePath = path;
+          _parseResult = null;
+        });
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
     }
   }
 
   Future<void> _pickFromCamera() async {
-    final service = ref.read(imagePickerProvider);
-    final path = await service.pickFromCamera();
-    if (path != null && mounted) {
-      setState(() {
-        _imagePath = path;
-        _parseResult = null;
-      });
+    if (Platform.isMacOS) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('macOS 当前不支持直接拍照，请使用“选择图片”')),
+      );
+      return;
+    }
+
+    try {
+      final service = ref.read(imagePickerProvider);
+      final path = await service.pickFromCamera();
+      if (path != null && mounted) {
+        setState(() {
+          _imagePath = path;
+          _parseResult = null;
+        });
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('拍照失败: $e')));
     }
   }
 
@@ -63,18 +89,29 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
     final result = await ref
         .read(imageParserProvider.notifier)
         .parse(_imagePath!);
-    if (mounted && result.success) {
-      setState(() {
-        _parseResult = result;
-        if (result.title != null) {
-          _titleController.text = result.title!;
-        }
-        if (result.date != null) {
-          _selectedDate = result.date;
-        }
-        _selectedPriority = result.priority;
-      });
+    if (!mounted) {
+      return;
     }
+
+    setState(() {
+      _parseResult = result;
+      if (result.success && result.title != null) {
+        _titleController.text = result.title!;
+      }
+      if (result.success && result.date != null) {
+        _selectedDate = result.date;
+      }
+      if (result.success) {
+        _selectedPriority = result.priority;
+        final categories = ref.read(categoriesProvider).valueOrNull ?? [];
+        _selectedCategoryId =
+            result.categoryId ??
+            CategoryMatcher.findRecommendedCategory(
+              result.categoryHint,
+              categories,
+            )?.id;
+      }
+    });
   }
 
   void _confirmAdd() {
@@ -85,7 +122,7 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
           ? _titleController.text
           : _parseResult!.title,
       date: _selectedDate,
-      categoryHint: _selectedCategoryId,
+      categoryId: _selectedCategoryId,
       priority: _selectedPriority,
     );
 
@@ -108,7 +145,10 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
           const SizedBox(height: 16),
           _buildParseButton(parseState),
           const SizedBox(height: 16),
-          if (_parseResult != null) ...[
+          if (_parseResult != null && !_parseResult!.success) ...[
+            _buildErrorCard(_parseResult!.errorMessage ?? '图片解析失败，请重试'),
+          ],
+          if (_parseResult != null && _parseResult!.success) ...[
             const Divider(),
             const SizedBox(height: 8),
             _buildParseResultSection(categoriesAsync),
@@ -143,23 +183,32 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Widget _buildImagePreview() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (_imagePath == null) {
       return Container(
         height: 200,
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: colorScheme.outlineVariant),
         ),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.image_outlined, size: 64, color: AppColors.textHint),
-              SizedBox(height: 8),
+              Icon(
+                Icons.image_outlined,
+                size: 64,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 8),
               Text(
                 '请选择或拍摄图片',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 14,
+                ),
               ),
             ],
           ),
@@ -171,7 +220,7 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
       height: 200,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -185,17 +234,19 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Widget _buildParseButton(AsyncValue<ParseResult> parseState) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return ElevatedButton.icon(
       onPressed: _imagePath == null || parseState.isLoading
           ? null
           : _parseImage,
       icon: parseState.isLoading
-          ? const SizedBox(
+          ? SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                color: Colors.white,
+                color: colorScheme.onPrimary,
               ),
             )
           : const Icon(Icons.auto_awesome),
@@ -204,17 +255,12 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Widget _buildParseResultSection(AsyncValue<List<Category>> categoriesAsync) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          '解析结果',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
+        Text('解析结果', style: textTheme.titleMedium),
         const SizedBox(height: 12),
         if (_parseResult!.ocrText != null) ...[
           _buildOcrTextCard(),
@@ -236,42 +282,68 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Widget _buildOcrTextCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.background,
+        color: colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.divider),
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.text_fields,
             size: 20,
-            color: AppColors.textSecondary,
+            color: colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   '识别文字：',
                   style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.textSecondary,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _parseResult!.ocrText!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.textPrimary,
+                    color: colorScheme.onSurface,
                   ),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorCard(String message) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: colorScheme.onErrorContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: colorScheme.onErrorContainer),
             ),
           ),
         ],
@@ -291,6 +363,8 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Widget _buildDateField() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: _selectDate,
       child: InputDecorator(
@@ -309,8 +383,8 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
               style: TextStyle(
                 fontSize: 16,
                 color: _selectedDate != null
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
+                    ? colorScheme.onSurface
+                    : colorScheme.onSurfaceVariant,
               ),
             ),
             const Icon(Icons.arrow_drop_down),
@@ -336,8 +410,15 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Widget _buildCategoryDropdown(List<Category> categories) {
+    final selectedCategoryId =
+        _selectedCategoryId ??
+        CategoryMatcher.findRecommendedCategory(
+          _parseResult?.categoryHint,
+          categories,
+        )?.id;
+
     return DropdownButtonFormField<String>(
-      initialValue: _selectedCategoryId,
+      initialValue: selectedCategoryId,
       decoration: const InputDecoration(
         labelText: '分类',
         prefixIcon: Icon(Icons.category_outlined),
@@ -380,6 +461,8 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
   }
 
   Widget _buildPrioritySelector() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return InputDecorator(
       decoration: const InputDecoration(
         labelText: '优先级',
@@ -415,7 +498,7 @@ class _ImageInputTabState extends ConsumerState<ImageInputTab> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSelected ? color : AppColors.textSecondary,
+                    color: isSelected ? color : colorScheme.onSurfaceVariant,
                     fontWeight: isSelected
                         ? FontWeight.w600
                         : FontWeight.normal,

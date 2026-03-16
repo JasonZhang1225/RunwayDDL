@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:runway_ddl/core/constants/app_colors.dart';
 import 'package:runway_ddl/presentation/providers/home_data_provider.dart';
 import 'package:runway_ddl/presentation/providers/items_provider.dart';
 import 'package:runway_ddl/presentation/providers/view_mode_provider.dart';
@@ -35,10 +34,9 @@ class _HomePageState extends ConsumerState<HomePage> {
         title: const Text('RunwayDDL'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.swap_horiz),
-            onPressed: () =>
-                ref.read(viewModeNotifierProvider.notifier).toggle(),
-            tooltip: '切换视图',
+            icon: const Icon(Icons.view_list_outlined),
+            onPressed: () => context.push('/items/list'),
+            tooltip: '事项列表',
           ),
           IconButton(
             icon: const Icon(Icons.category_outlined),
@@ -59,6 +57,8 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildBody(HomePageData homeData, ViewMode viewMode) {
+    final textTheme = Theme.of(context).textTheme;
+
     if (homeData.isEmpty) {
       return _buildEmptyState();
     }
@@ -80,16 +80,12 @@ class _HomePageState extends ConsumerState<HomePage> {
             ),
           ),
         const SliverToBoxAdapter(
+          child: SizedBox.shrink(),
+        ),
+        SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              '未来事项',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-            ),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text('未来事项', style: textTheme.titleMedium),
           ),
         ),
         SliverToBoxAdapter(
@@ -98,6 +94,8 @@ class _HomePageState extends ConsumerState<HomePage> {
             child: DateStreamMatrixWithMode(
               data: homeData.mainStreamMatrix,
               horizontalController: _horizontalScrollController,
+              onToggleViewMode: () =>
+                  ref.read(viewModeNotifierProvider.notifier).toggle(),
               onToggleStatus: (item) => _toggleItemStatus(item.id),
             ),
           ),
@@ -108,26 +106,29 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   Widget _buildEmptyState() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
+          Icon(
             Icons.event_available,
             size: 80,
-            color: AppColors.textHint,
+            color: colorScheme.onSurfaceVariant,
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             '暂无事项',
-            style: TextStyle(fontSize: 18, color: AppColors.textSecondary),
+            style: textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
           Text(
             '点击右下角按钮添加新事项',
             style: TextStyle(
               fontSize: 14,
-              color: AppColors.textSecondary.withOpacity(0.7),
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
             ),
           ),
         ],

@@ -2,28 +2,30 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:runway_ddl/core/utils/date_utils.dart' as app_utils;
 import 'package:runway_ddl/data/models/item.dart';
 import 'package:runway_ddl/data/models/parse_result.dart';
 
 abstract class AIService {
-  Future<ParseResult> parseText(String input);
-  Future<ParseResult> parseImage(String imagePath);
+  Future<ParseResult> parseText(String input, {List<String> categoryNames = const []});
+  Future<ParseResult> parseImage(
+    String imagePath, {
+    List<String> categoryNames = const [],
+  });
 }
 
 class AIServiceImpl implements AIService {
   final Dio _dio;
   final String baseUrl;
   final String apiKey;
-  final String textModel;
-  final String imageModel;
+  final String model;
 
   static const Duration _timeout = Duration(seconds: 30);
 
   AIServiceImpl({
     required this.baseUrl,
     required this.apiKey,
-    this.textModel = 'qwen-plus',
-    this.imageModel = 'qwen-vl-plus',
+    required this.model,
   }) : _dio = Dio(
          BaseOptions(
            baseUrl: baseUrl,
@@ -37,26 +39,36 @@ class AIServiceImpl implements AIService {
        );
 
   @override
-  Future<ParseResult> parseText(String input) async {
+  Future<ParseResult> parseText(
+    String input, {
+    List<String> categoryNames = const [],
+  }) async {
+    final configError = _validateConfig();
+    if (configError != null) {
+      return ParseResult.failed(configError);
+    }
+
     try {
       final prompt =
-          '''请从以下自然语言描述中提取任务信息，返回 JSON 格式：
+          '''${_buildContextPrompt(categoryNames)}
+
+请从以下自然语言描述中提取任务信息，返回 JSON 格式：
 
 输入：$input
 
 返回格式：
 {
   "title": "任务标题",
-  "date": "YYYY-MM-DD 或相对日期描述",
+  "date": "YYYY-MM-DD 或 null",
   "time": "HH:MM 或 null",
-  "category_hint": "分类关键词",
+  "category_hint": "优先使用已有分类名称；不确定时返回简短分类提示或 null",
   "priority": "high/medium/low"
 }''';
 
       final response = await _dio.post(
         '/chat/completions',
         data: {
-          'model': textModel,
+          'model': model,
           'messages': [
             {
               'role': 'system',
@@ -67,8 +79,9 @@ class AIServiceImpl implements AIService {
         },
       );
 
-      final content =
-          response.data['choices'][0]['message']['content'] as String;
+      final content = _extractMessageContent(
+        response.data['choices'][0]['message']['content'],
+      );
       return _parseTextResponse(content);
     } on DioException catch (e) {
       return ParseResult.failed(_handleDioError(e));
@@ -78,7 +91,15 @@ class AIServiceImpl implements AIService {
   }
 
   @override
-  Future<ParseResult> parseImage(String imagePath) async {
+  Future<ParseResult> parseImage(
+    String imagePath, {
+    List<String> categoryNames = const [],
+  }) async {
+    final configError = _validateConfig();
+    if (configError != null) {
+      return ParseResult.failed(configError);
+    }
+
     try {
       final file = File(imagePath);
       if (!await file.exists()) {
@@ -88,7 +109,9 @@ class AIServiceImpl implements AIService {
       final bytes = await file.readAsBytes();
       final base64Image = base64Encode(bytes);
 
-      final prompt = '''请分析这张图片，提取其中的任务信息：
+      final prompt = '''${_buildContextPrompt(categoryNames)}
+
+请分析这张图片，提取其中的任务信息：
 
 1. 如果是课程表：提取课程名称、时间、地点
 2. 如果是会议白板：提取会议主题、时间、待办事项
@@ -98,9 +121,9 @@ class AIServiceImpl implements AIService {
 返回 JSON 格式：
 {
   "title": "任务标题",
-  "date": "YYYY-MM-DD",
+  "date": "YYYY-MM-DD 或 null",
   "time": "HH:MM 或 null",
-  "category_hint": "分类关键词",
+  "category_hint": "优先使用已有分类名称；不确定时返回简短分类提示或 null",
   "priority": "high/medium/low",
   "ocr_text": "图片中识别的原始文字"
 }''';
@@ -108,7 +131,7 @@ class AIServiceImpl implements AIService {
       final response = await _dio.post(
         '/chat/completions',
         data: {
-          'model': imageModel,
+          'model': model,
           'messages': [
             {
               'role': 'system',
@@ -120,7 +143,10 @@ class AIServiceImpl implements AIService {
                 {'type': 'text', 'text': prompt},
                 {
                   'type': 'image_url',
-                  'image_url': {'url': 'data:image/jpeg;base64,$base64Image'},
+                  'image_url': {
+                    'url':
+                        'data:${_inferMimeType(imagePath)};base64,$base64Image',
+                  },
                 },
               ],
             },
@@ -128,8 +154,9 @@ class AIServiceImpl implements AIService {
         },
       );
 
-      final content =
-          response.data['choices'][0]['message']['content'] as String;
+      final content = _extractMessageContent(
+        response.data['choices'][0]['message']['content'],
+      );
       return _parseImageResponse(content);
     } on DioException catch (e) {
       return ParseResult.failed(_handleDioError(e));
@@ -144,10 +171,10 @@ class AIServiceImpl implements AIService {
       final json = jsonDecode(jsonStr) as Map<String, dynamic>;
 
       return ParseResult(
-        title: json['title'] as String?,
+        title: _parseNullableString(json['title']),
         date: _parseDate(json['date'] as String?),
-        time: json['time'] as String?,
-        categoryHint: json['category_hint'] as String?,
+        time: _parseNullableString(json['time']),
+        categoryHint: _parseNullableString(json['category_hint']),
         priority: _parsePriority(json['priority'] as String?),
         confidence: 0.8,
         success: true,
@@ -163,14 +190,14 @@ class AIServiceImpl implements AIService {
       final json = jsonDecode(jsonStr) as Map<String, dynamic>;
 
       return ParseResult(
-        title: json['title'] as String?,
+        title: _parseNullableString(json['title']),
         date: _parseDate(json['date'] as String?),
-        time: json['time'] as String?,
-        categoryHint: json['category_hint'] as String?,
+        time: _parseNullableString(json['time']),
+        categoryHint: _parseNullableString(json['category_hint']),
         priority: _parsePriority(json['priority'] as String?),
         confidence: 0.8,
         success: true,
-        ocrText: json['ocr_text'] as String?,
+        ocrText: _parseNullableString(json['ocr_text']),
       );
     } catch (e) {
       return ParseResult.failed('JSON 解析失败: $e');
@@ -186,37 +213,73 @@ class AIServiceImpl implements AIService {
     return content.substring(startIndex, endIndex + 1);
   }
 
+  String? _validateConfig() {
+    if (apiKey.trim().isEmpty) {
+      return '请先在设置页配置 AI API Key';
+    }
+    if (baseUrl.trim().isEmpty) {
+      return 'AI Base URL 未配置';
+    }
+    if (model.trim().isEmpty) {
+      return 'AI 模型未配置';
+    }
+    return null;
+  }
+
+  String _extractMessageContent(dynamic content) {
+    if (content is String) {
+      return content;
+    }
+    if (content is List) {
+      final buffer = StringBuffer();
+      for (final item in content) {
+        if (item is Map<String, dynamic>) {
+          final text = item['text'];
+          if (text is String && text.isNotEmpty) {
+            if (buffer.isNotEmpty) {
+              buffer.writeln();
+            }
+            buffer.write(text);
+          }
+        }
+      }
+      if (buffer.isNotEmpty) {
+        return buffer.toString();
+      }
+    }
+    throw const FormatException('模型返回内容为空');
+  }
+
+  String _inferMimeType(String imagePath) {
+    final normalized = imagePath.toLowerCase();
+    if (normalized.endsWith('.png')) {
+      return 'image/png';
+    }
+    if (normalized.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    if (normalized.endsWith('.gif')) {
+      return 'image/gif';
+    }
+    return 'image/jpeg';
+  }
+
   DateTime? _parseDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return null;
 
-    final normalizedStr = dateStr.trim().toLowerCase();
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final normalizedStr = dateStr.trim();
+    return app_utils.DateUtils.parseRelativeDate(normalizedStr);
+  }
 
-    switch (normalizedStr) {
-      case '今天':
-      case '今日':
-        return today;
-      case '明天':
-      case '明日':
-        return today.add(const Duration(days: 1));
-      case '后天':
-        return today.add(const Duration(days: 2));
-      case '下周':
-      case '下星期':
-        return today.add(const Duration(days: 7));
-      default:
-        try {
-          final parts = dateStr.split('-');
-          if (parts.length == 3) {
-            final year = int.parse(parts[0]);
-            final month = int.parse(parts[1]);
-            final day = int.parse(parts[2]);
-            return DateTime(year, month, day);
-          }
-        } catch (_) {}
+  String? _parseNullableString(dynamic value) {
+    if (value is! String) {
+      return null;
     }
-    return null;
+    final normalized = value.trim();
+    if (normalized.isEmpty || normalized.toLowerCase() == 'null') {
+      return null;
+    }
+    return normalized;
   }
 
   ItemPriority _parsePriority(String? priorityStr) {
@@ -243,6 +306,12 @@ class AIServiceImpl implements AIService {
         final statusCode = e.response?.statusCode;
         if (statusCode == 401) {
           return 'API Key 无效';
+        } else if (statusCode == 400) {
+          final message = e.response?.data?['error']?['message'];
+          if (message is String && message.isNotEmpty) {
+            return message;
+          }
+          return '请求参数错误，请检查模型和接口地址';
         } else if (statusCode == 429) {
           return '请求过于频繁，请稍后再试';
         }
@@ -252,5 +321,58 @@ class AIServiceImpl implements AIService {
       default:
         return '请求失败: ${e.message}';
     }
+  }
+
+  String _buildContextPrompt(List<String> categoryNames) {
+    final now = DateTime.now();
+    final currentTime =
+        '${app_utils.DateUtils.formatDate(now)} '
+        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} '
+        '${app_utils.DateUtils.weekdayLabels[now.weekday - 1]}';
+    final calendar = _buildCalendarWindow(now, 21);
+    final categories = categoryNames.isEmpty
+        ? '- 无现有分类'
+        : categoryNames.map((name) => '- $name').join('\n');
+
+    return '''当前时间：$currentTime
+
+未来21天简单日历：
+$calendar
+
+当前已有分类：
+$categories
+
+规则：
+1. 日期优先输出 YYYY-MM-DD，无法确定时返回 null。
+2. “周五”“下周”“下周一”“月底”必须基于上面的当前时间和日历判断。
+3. 分类优先从“当前已有分类”里选择最接近的一项写入 category_hint。
+4. 不要猜去年或其他年份，原文没写年份时按最近的合理未来日期理解。''';
+  }
+
+  String _buildCalendarWindow(DateTime start, int days) {
+    final today = DateTime(start.year, start.month, start.day);
+    final lines = <String>[];
+
+    for (var i = 0; i < days; i++) {
+      final date = today.add(Duration(days: i));
+      final tags = <String>[];
+      if (i == 0) {
+        tags.add('今天');
+      } else if (i == 1) {
+        tags.add('明天');
+      }
+      if (date.difference(app_utils.DateUtils.nextWeek()).inDays >= 0 &&
+          date.difference(app_utils.DateUtils.nextWeek()).inDays < 7) {
+        tags.add('下周');
+      }
+
+      final tagSuffix = tags.isEmpty ? '' : ' (${tags.join('，')})';
+      lines.add(
+        '${app_utils.DateUtils.formatDate(date)} '
+        '${app_utils.DateUtils.weekdayLabels[date.weekday - 1]}$tagSuffix',
+      );
+    }
+
+    return lines.join('\n');
   }
 }

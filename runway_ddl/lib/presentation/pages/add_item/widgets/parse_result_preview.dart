@@ -27,6 +27,7 @@ class _ParseResultPreviewState extends ConsumerState<ParseResultPreview> {
   late TextEditingController _titleController;
   late DateTime? _selectedDate;
   late String? _selectedTime;
+  late String? _selectedCategoryId;
   late String? _categoryHint;
   late ItemPriority _selectedPriority;
 
@@ -36,6 +37,7 @@ class _ParseResultPreviewState extends ConsumerState<ParseResultPreview> {
     _titleController = TextEditingController(text: widget.result.title ?? '');
     _selectedDate = widget.result.date;
     _selectedTime = widget.result.time;
+    _selectedCategoryId = widget.result.categoryId;
     _categoryHint = widget.result.categoryHint;
     _selectedPriority = widget.result.priority;
   }
@@ -223,20 +225,7 @@ class _ParseResultPreviewState extends ConsumerState<ParseResultPreview> {
   }
 
   Widget _buildCategoryDropdown(List<Category> categories) {
-    String? selectedCategoryId;
-    if (_categoryHint != null) {
-      final matchedCategory = categories
-          .where(
-            (c) =>
-                c.name.toLowerCase().contains(_categoryHint!.toLowerCase()) ||
-                _categoryHint!.toLowerCase().contains(c.name.toLowerCase()),
-          )
-          .firstOrNull;
-      if (matchedCategory != null) {
-        selectedCategoryId = matchedCategory.id;
-      }
-    }
-    selectedCategoryId ??= categories.isNotEmpty ? categories.first.id : null;
+    final selectedCategoryId = _selectedCategoryId ?? _resolveCategoryId(categories);
 
     return DropdownButtonFormField<String>(
       initialValue: selectedCategoryId,
@@ -276,6 +265,7 @@ class _ParseResultPreviewState extends ConsumerState<ParseResultPreview> {
         if (value != null) {
           final category = categories.firstWhere((c) => c.id == value);
           setState(() {
+            _selectedCategoryId = category.id;
             _categoryHint = category.name;
           });
           _updateResult();
@@ -363,9 +353,28 @@ class _ParseResultPreviewState extends ConsumerState<ParseResultPreview> {
       title: _titleController.text,
       date: _selectedDate,
       time: _selectedTime,
+      categoryId: _selectedCategoryId,
       categoryHint: _categoryHint,
       priority: _selectedPriority,
     );
     widget.onResultChanged(updatedResult);
+  }
+
+  String? _resolveCategoryId(List<Category> categories) {
+    if (_selectedCategoryId != null &&
+        categories.any((category) => category.id == _selectedCategoryId)) {
+      return _selectedCategoryId;
+    }
+
+    final matchedCategory = categories.where((category) {
+      final hint = _categoryHint?.toLowerCase();
+      if (hint == null || hint.isEmpty) {
+        return false;
+      }
+      final name = category.name.toLowerCase();
+      return name == hint || name.contains(hint) || hint.contains(name);
+    }).firstOrNull;
+
+    return matchedCategory?.id;
   }
 }

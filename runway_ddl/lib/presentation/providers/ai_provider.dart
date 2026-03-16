@@ -1,18 +1,39 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:runway_ddl/data/models/ai_config.dart';
 import 'package:runway_ddl/data/models/parse_result.dart';
+import 'package:runway_ddl/data/services/ai_config_service.dart';
 import 'package:runway_ddl/data/services/ai_service.dart';
+import 'package:runway_ddl/data/services/hive_service.dart';
+import 'package:runway_ddl/presentation/providers/categories_provider.dart';
 
 part 'ai_provider.g.dart';
 
 @riverpod
-AIService aiService(AiServiceRef ref) {
-  const baseUrl = String.fromEnvironment(
-    'AI_BASE_URL',
-    defaultValue: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  );
-  const apiKey = String.fromEnvironment('AI_API_KEY', defaultValue: '');
+AIConfigService aiConfigService(AiConfigServiceRef ref) {
+  return AIConfigService(HiveService());
+}
 
-  return AIServiceImpl(baseUrl: baseUrl, apiKey: apiKey);
+@riverpod
+AIService aiService(AiServiceRef ref) {
+  final config = ref.watch(aIConfigNotifierProvider);
+  return AIServiceImpl(
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    model: config.model,
+  );
+}
+
+@riverpod
+class AIConfigNotifier extends _$AIConfigNotifier {
+  @override
+  AIConfig build() {
+    return ref.read(aiConfigServiceProvider).loadConfig();
+  }
+
+  Future<void> saveConfig(AIConfig config) async {
+    final saved = await ref.read(aiConfigServiceProvider).saveConfig(config);
+    state = saved;
+  }
 }
 
 @riverpod
@@ -29,7 +50,13 @@ class TextParser extends _$TextParser {
 
     state = const AsyncValue.loading();
     final service = ref.read(aiServiceProvider);
-    final result = await service.parseText(input);
+    final categoryNames = (ref.read(categoriesProvider).valueOrNull ?? [])
+        .map((category) => category.name)
+        .toList();
+    final result = await service.parseText(
+      input,
+      categoryNames: categoryNames,
+    );
     state = AsyncValue.data(result);
     return result;
   }
@@ -49,7 +76,13 @@ class ImageParser extends _$ImageParser {
 
     state = const AsyncValue.loading();
     final service = ref.read(aiServiceProvider);
-    final result = await service.parseImage(imagePath);
+    final categoryNames = (ref.read(categoriesProvider).valueOrNull ?? [])
+        .map((category) => category.name)
+        .toList();
+    final result = await service.parseImage(
+      imagePath,
+      categoryNames: categoryNames,
+    );
     state = AsyncValue.data(result);
     return result;
   }

@@ -7,10 +7,12 @@ import 'package:runway_ddl/core/utils/date_utils.dart' as app_utils;
 import 'package:runway_ddl/data/models/category.dart';
 import 'package:runway_ddl/data/models/item.dart';
 import 'package:runway_ddl/data/models/parse_result.dart';
+import 'package:runway_ddl/data/repositories/category_repository.dart';
 import 'package:runway_ddl/presentation/providers/categories_provider.dart';
 import 'package:runway_ddl/presentation/providers/items_provider.dart';
 import 'package:runway_ddl/presentation/pages/add_item/widgets/quick_input_tab.dart';
 import 'package:runway_ddl/presentation/pages/add_item/widgets/image_input_tab.dart';
+import 'package:runway_ddl/presentation/widgets/add_category_dialog.dart';
 
 class AddItemPage extends ConsumerStatefulWidget {
   const AddItemPage({super.key});
@@ -97,15 +99,17 @@ class _AddItemPageState extends ConsumerState<AddItemPage>
   }
 
   Widget _buildMainTabBar() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: TabBar(
         controller: _mainTabController,
-        labelColor: AppColors.primary,
-        unselectedLabelColor: AppColors.textSecondary,
-        indicatorColor: AppColors.primary,
+        labelColor: colorScheme.primary,
+        unselectedLabelColor: colorScheme.onSurfaceVariant,
+        indicatorColor: colorScheme.primary,
         tabs: const [
           Tab(text: '手动添加'),
           Tab(text: '快捷添加'),
@@ -141,17 +145,19 @@ class _AddItemPageState extends ConsumerState<AddItemPage>
   }
 
   Widget _buildQuickInputTab() {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       children: [
         Container(
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.divider)),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
           ),
           child: TabBar(
             controller: _quickInputTabController,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.primary,
+            labelColor: colorScheme.primary,
+            unselectedLabelColor: colorScheme.onSurfaceVariant,
+            indicatorColor: colorScheme.primary,
             tabs: const [
               Tab(text: '文本输入'),
               Tab(text: '图片输入'),
@@ -193,46 +199,170 @@ class _AddItemPageState extends ConsumerState<AddItemPage>
   }
 
   Widget _buildCategoryDropdown(List<Category> categories) {
-    return DropdownButtonFormField<String>(
-      initialValue: _selectedCategoryId,
-      decoration: const InputDecoration(
-        labelText: '分类 *',
-        prefixIcon: Icon(Icons.category_outlined),
-      ),
-      items: categories.map((category) {
-        Color categoryColor;
-        try {
-          final colorHex = category.color.replaceFirst('#', '');
-          categoryColor = Color(int.parse('FF$colorHex', radix: 16));
-        } catch (_) {
-          categoryColor = AppColors.uncategorized;
-        }
+    final selectedCategory = _findCategoryById(categories, _selectedCategoryId);
 
-        return DropdownMenuItem(
-          value: category.id,
-          child: Row(
+    return InkWell(
+      onTap: () => _showCategorySelector(categories),
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: '分类 *',
+          prefixIcon: Icon(Icons.category_outlined),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _resolveCategoryColor(selectedCategory),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  selectedCategory?.name ?? '未分类',
+                  style: const TextStyle(fontSize: 16),
+                ),
+              ],
+            ),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Category? _findCategoryById(List<Category> categories, String categoryId) {
+    try {
+      return categories.firstWhere((category) => category.id == categoryId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Color _resolveCategoryColor(Category? category) {
+    try {
+      final colorHex = category?.color.replaceFirst('#', '') ?? '9E9E9E';
+      return Color(int.parse('FF$colorHex', radix: 16));
+    } catch (_) {
+      return AppColors.uncategorized;
+    }
+  }
+
+  Future<void> _showCategorySelector(List<Category> categories) async {
+    final selectedValue = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final colorScheme = Theme.of(context).colorScheme;
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: categoryColor,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '选择分类',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(category.name),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final category in categories)
+                      ListTile(
+                        leading: Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _resolveCategoryColor(category),
+                          ),
+                        ),
+                        title: Text(category.name),
+                        trailing: category.id == _selectedCategoryId
+                            ? Icon(
+                                Icons.check,
+                                color: colorScheme.primary,
+                              )
+                            : null,
+                        onTap: () => Navigator.pop(context, category.id),
+                      ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.add_circle_outline),
+                      title: const Text('新增类型'),
+                      onTap: () => Navigator.pop(context, '__add_category__'),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         );
-      }).toList(),
-      onChanged: (value) {
-        if (value != null) {
-          setState(() {
-            _selectedCategoryId = value;
-          });
-        }
       },
+    );
+
+    if (!mounted || selectedValue == null) {
+      return;
+    }
+
+    if (selectedValue == '__add_category__') {
+      await _showAddCategoryDialog();
+      return;
+    }
+
+    setState(() {
+      _selectedCategoryId = selectedValue;
+    });
+  }
+
+  Future<void> _showAddCategoryDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AddCategoryDialog(
+        onConfirm: (name, color) async {
+          try {
+            final category = await ref
+                .read(categoriesProvider.notifier)
+                .createCategory(name, color);
+            if (!dialogContext.mounted || !mounted) {
+              return;
+            }
+
+            Navigator.pop(dialogContext);
+            setState(() {
+              _selectedCategoryId = category.id;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('已新增分类「${category.name}」')),
+            );
+          } on CategoryNameExistsException {
+            if (!dialogContext.mounted) {
+              return;
+            }
+            ScaffoldMessenger.of(dialogContext).showSnackBar(
+              const SnackBar(content: Text('分类名称已存在')),
+            );
+          } catch (e) {
+            if (!dialogContext.mounted) {
+              return;
+            }
+            ScaffoldMessenger.of(dialogContext).showSnackBar(
+              SnackBar(content: Text('创建失败: $e')),
+            );
+          }
+        },
+      ),
     );
   }
 
@@ -449,8 +579,8 @@ class _AddItemPageState extends ConsumerState<AddItemPage>
           .read(itemsProvider.notifier)
           .createItem(
             title: result.title ?? '未命名事项',
-            dueDate: result.date ?? DateTime.now(),
-            categoryId: _getRecommendedCategoryId(result.categoryHint),
+            dueDate: result.date ?? app_utils.DateUtils.today(),
+            categoryId: _resolveCategoryId(result),
             dueTime: result.time,
             priority: result.priority,
           );
@@ -476,8 +606,8 @@ class _AddItemPageState extends ConsumerState<AddItemPage>
           .read(itemsProvider.notifier)
           .createItem(
             title: result.title ?? '未命名事项',
-            dueDate: result.date ?? DateTime.now(),
-            categoryId: _getRecommendedCategoryId(result.categoryHint),
+            dueDate: result.date ?? app_utils.DateUtils.today(),
+            categoryId: _resolveCategoryId(result),
             dueTime: result.time,
             priority: result.priority,
             imagePath: imagePath,
@@ -499,5 +629,14 @@ class _AddItemPageState extends ConsumerState<AddItemPage>
     final categories = ref.read(categoriesProvider).valueOrNull ?? [];
     final category = CategoryMatcher.findRecommendedCategory(hint, categories);
     return category?.id ?? 'uncategorized';
+  }
+
+  String _resolveCategoryId(ParseResult result) {
+    final categories = ref.read(categoriesProvider).valueOrNull ?? [];
+    if (result.categoryId != null &&
+        categories.any((category) => category.id == result.categoryId)) {
+      return result.categoryId!;
+    }
+    return _getRecommendedCategoryId(result.categoryHint);
   }
 }

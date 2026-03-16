@@ -4,6 +4,7 @@ class ParseResult {
   final String? title;
   final DateTime? date;
   final String? time;
+  final String? categoryId;
   final String? categoryHint;
   final ItemPriority priority;
   final double confidence;
@@ -15,6 +16,7 @@ class ParseResult {
     this.title,
     this.date,
     this.time,
+    this.categoryId,
     this.categoryHint,
     this.priority = ItemPriority.medium,
     this.confidence = 0.0,
@@ -34,6 +36,7 @@ class ParseResult {
     String? title,
     DateTime? date,
     String? time,
+    String? categoryId,
     String? categoryHint,
     ItemPriority? priority,
     double? confidence,
@@ -45,6 +48,7 @@ class ParseResult {
       title: title ?? this.title,
       date: date ?? this.date,
       time: time ?? this.time,
+      categoryId: categoryId ?? this.categoryId,
       categoryHint: categoryHint ?? this.categoryHint,
       priority: priority ?? this.priority,
       confidence: confidence ?? this.confidence,

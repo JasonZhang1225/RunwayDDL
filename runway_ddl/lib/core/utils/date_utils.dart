@@ -1,6 +1,16 @@
 class DateUtils {
   DateUtils._();
 
+  static const List<String> weekdayLabels = [
+    '周一',
+    '周二',
+    '周三',
+    '周四',
+    '周五',
+    '周六',
+    '周日',
+  ];
+
   static DateTime today() {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day);
@@ -44,12 +54,15 @@ class DateUtils {
   }
 
   static String formatDateWithWeekday(DateTime date) {
-    const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    return '${date.month}月${date.day}日 ${weekdays[date.weekday - 1]}';
+    return '${date.month}月${date.day}日 ${weekdayLabels[date.weekday - 1]}';
   }
 
   static DateTime? parseRelativeDate(String input) {
-    final normalized = input.trim().toLowerCase();
+    final normalized = input.trim().toLowerCase().replaceAll('星期', '周');
+
+    if (normalized.isEmpty || normalized == 'null') {
+      return null;
+    }
 
     switch (normalized) {
       case '今天':
@@ -71,8 +84,47 @@ class DateUtils {
       case '月底':
         return endOfMonth();
       default:
+        final weekdayDate = _parseWeekdayDate(normalized);
+        if (weekdayDate != null) {
+          return weekdayDate;
+        }
         return _parseAbsoluteDate(normalized);
     }
+  }
+
+  static DateTime? _parseWeekdayDate(String input) {
+    const weekdayMap = {
+      '周一': DateTime.monday,
+      '周二': DateTime.tuesday,
+      '周三': DateTime.wednesday,
+      '周四': DateTime.thursday,
+      '周五': DateTime.friday,
+      '周六': DateTime.saturday,
+      '周日': DateTime.sunday,
+      '周天': DateTime.sunday,
+    };
+
+    if (weekdayMap.containsKey(input)) {
+      return _resolveUpcomingWeekday(weekdayMap[input]!, weekOffset: 0);
+    }
+
+    for (final entry in weekdayMap.entries) {
+      if (input == '本${entry.key}') {
+        return _resolveUpcomingWeekday(entry.value, weekOffset: 0);
+      }
+      if (input == '下${entry.key}' || input == '下周${entry.key.substring(1)}') {
+        return _resolveUpcomingWeekday(entry.value, weekOffset: 1);
+      }
+    }
+
+    return null;
+  }
+
+  static DateTime _resolveUpcomingWeekday(int weekday, {required int weekOffset}) {
+    final current = today();
+    final daysUntil = (weekday - current.weekday + 7) % 7;
+    final baseDays = weekOffset == 0 ? daysUntil : daysUntil + 7;
+    return current.add(Duration(days: baseDays));
   }
 
   static DateTime? _parseAbsoluteDate(String input) {

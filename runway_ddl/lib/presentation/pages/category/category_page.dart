@@ -5,6 +5,7 @@ import 'package:runway_ddl/data/models/category.dart';
 import 'package:runway_ddl/data/repositories/category_repository.dart';
 import 'package:runway_ddl/presentation/providers/categories_provider.dart';
 import 'package:runway_ddl/presentation/providers/items_provider.dart';
+import 'package:runway_ddl/presentation/widgets/add_category_dialog.dart';
 
 class CategoryPage extends ConsumerWidget {
   const CategoryPage({super.key});
@@ -67,7 +68,7 @@ class CategoryPage extends ConsumerWidget {
   void _showAddCategoryDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (context) => _AddCategoryDialog(
+      builder: (context) => AddCategoryDialog(
         onConfirm: (name, color) async {
           try {
             await ref.read(categoriesProvider.notifier).createCategory(name, color);
@@ -168,7 +169,9 @@ class CategoryPage extends ConsumerWidget {
                 }
               }
             },
-            style: TextButton.styleFrom(foregroundColor: AppColors.overdue),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: const Text('删除'),
           ),
         ],
@@ -190,6 +193,8 @@ class _CategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     Color categoryColor;
     try {
       final colorHex = category.color.replaceFirst('#', '');
@@ -234,14 +239,14 @@ class _CategoryCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.textHint.withOpacity(0.2),
+                            color: colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(4),
                           ),
-                          child: const Text(
+                          child: Text(
                             '系统',
                             style: TextStyle(
                               fontSize: 10,
-                              color: AppColors.textSecondary,
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -255,157 +260,19 @@ class _CategoryCard extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
                 onPressed: onEdit,
-                color: AppColors.textSecondary,
+                color: colorScheme.onSurfaceVariant,
               ),
             if (category.isSystem)
               IconButton(
-                icon: Icon(Icons.lock_outline, color: AppColors.textHint),
+                icon: Icon(
+                  Icons.lock_outline,
+                  color: colorScheme.onSurfaceVariant,
+                ),
                 onPressed: null,
               ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _AddCategoryDialog extends StatefulWidget {
-  final Future<void> Function(String name, String color) onConfirm;
-
-  const _AddCategoryDialog({required this.onConfirm});
-
-  @override
-  State<_AddCategoryDialog> createState() => _AddCategoryDialogState();
-}
-
-class _AddCategoryDialogState extends State<_AddCategoryDialog> {
-  final _controller = TextEditingController();
-  String _selectedColor = '#2196F3';
-  bool _isLoading = false;
-
-  final _colors = [
-    '#F44336',
-    '#E91E63',
-    '#9C27B0',
-    '#673AB7',
-    '#3F51B5',
-    '#2196F3',
-    '#03A9F4',
-    '#00BCD4',
-    '#009688',
-    '#4CAF50',
-    '#8BC34A',
-    '#CDDC39',
-    '#FFC107',
-    '#FF9800',
-    '#FF5722',
-    '#795548',
-    '#9E9E9E',
-    '#607D8B',
-  ];
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('添加分类'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _controller,
-            decoration: const InputDecoration(
-              labelText: '分类名称',
-              hintText: '请输入分类名称',
-            ),
-            autofocus: true,
-          ),
-          const SizedBox(height: 16),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              '选择颜色',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _colors.map((color) {
-              final isSelected = _selectedColor == color;
-              Color c;
-              try {
-                final colorHex = color.replaceFirst('#', '');
-                c = Color(int.parse('FF$colorHex', radix: 16));
-              } catch (_) {
-                c = AppColors.uncategorized;
-              }
-
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedColor = color;
-                  });
-                },
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: c,
-                    border: isSelected
-                        ? Border.all(color: AppColors.textPrimary, width: 3)
-                        : null,
-                  ),
-                  child: isSelected
-                      ? const Icon(Icons.check, color: Colors.white, size: 20)
-                      : null,
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        ElevatedButton(
-          onPressed: _isLoading
-              ? null
-              : () async {
-                  if (_controller.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('请输入分类名称')),
-                    );
-                    return;
-                  }
-
-                  setState(() {
-                    _isLoading = true;
-                  });
-
-                  await widget.onConfirm(_controller.text.trim(), _selectedColor);
-                },
-          child: _isLoading
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('创建'),
-        ),
-      ],
     );
   }
 }
@@ -478,13 +345,13 @@ class _EditCategoryDialogState extends State<_EditCategoryDialog> {
             autofocus: true,
           ),
           const SizedBox(height: 16),
-          const Align(
+          Align(
             alignment: Alignment.centerLeft,
             child: Text(
               '选择颜色',
               style: TextStyle(
                 fontSize: 14,
-                color: AppColors.textSecondary,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -515,7 +382,10 @@ class _EditCategoryDialogState extends State<_EditCategoryDialog> {
                     shape: BoxShape.circle,
                     color: c,
                     border: isSelected
-                        ? Border.all(color: AppColors.textPrimary, width: 3)
+                        ? Border.all(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            width: 3,
+                          )
                         : null,
                   ),
                   child: isSelected

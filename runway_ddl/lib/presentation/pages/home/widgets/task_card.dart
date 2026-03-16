@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:runway_ddl/core/constants/app_colors.dart';
 import 'package:runway_ddl/data/models/item.dart';
 import 'package:runway_ddl/data/models/item_priority_extension.dart';
 
@@ -18,6 +17,8 @@ class TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: onTap ?? () => context.push('/items/${item.id}'),
       child: Container(
@@ -25,12 +26,12 @@ class TaskCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(color: colorScheme.outlineVariant),
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadow.withOpacity(0.05),
+              color: colorScheme.shadow.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -75,8 +76,8 @@ class TaskCard extends StatelessWidget {
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: item.status == ItemStatus.completed
-                          ? AppColors.textPrimary.withOpacity(0.5)
-                          : AppColors.textPrimary,
+                          ? colorScheme.onSurface.withValues(alpha: 0.5)
+                          : colorScheme.onSurface,
                       decoration: item.status == ItemStatus.completed
                           ? TextDecoration.lineThrough
                           : null,
@@ -91,9 +92,9 @@ class TaskCard extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 item.dueTime!,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
-                  color: AppColors.textSecondary,
+                  color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ],

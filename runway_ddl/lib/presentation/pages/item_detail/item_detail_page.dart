@@ -97,6 +97,8 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   }
 
   Widget _buildViewMode(Item item) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final categoriesAsync = ref.watch(categoriesProvider);
     final category = categoriesAsync.valueOrNull?.firstWhere(
       (c) => c.id == item.categoryId,
@@ -122,8 +124,8 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: item.status == ItemStatus.completed
-                  ? AppColors.textPrimary.withOpacity(0.5)
-                  : AppColors.textPrimary,
+                  ? colorScheme.onSurface.withValues(alpha: 0.5)
+                  : colorScheme.onSurface,
               decoration: item.status == ItemStatus.completed
                   ? TextDecoration.lineThrough
                   : null,
@@ -133,12 +135,12 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
           _buildMetaInfo(item, category),
           if (item.description != null && item.description!.isNotEmpty) ...[
             const Divider(height: 32),
-            const Text(
+            Text(
               '描述',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
@@ -146,12 +148,12 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
           ],
           if (item.imagePath != null && item.imagePath!.isNotEmpty) ...[
             const Divider(height: 32),
-            const Text(
+            Text(
               '图片附件',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                color: colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
@@ -166,8 +168,10 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
                   fit: BoxFit.cover,
                   errorBuilder: (_, _, _) => Container(
                     height: 100,
-                    color: Colors.grey[200],
-                    child: const Center(child: Text('图片加载失败')),
+                    color: colorScheme.surfaceContainerHighest,
+                    child: Center(
+                      child: Text('图片加载失败', style: textTheme.bodyMedium),
+                    ),
                   ),
                 ),
               ),
@@ -181,8 +185,13 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   }
 
   Widget _buildStatusIndicator(Item item) {
+    final colorScheme = Theme.of(context).colorScheme;
     final (text, color, bgColor) = switch (item.status) {
-      ItemStatus.pending => ('待完成', AppColors.primary, AppColors.primaryLight),
+      ItemStatus.pending => (
+        '待完成',
+        colorScheme.primary,
+        colorScheme.primaryContainer,
+      ),
       ItemStatus.completed => (
         '已完成',
         AppColors.completed,
@@ -248,16 +257,18 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
     required String label,
     Color? color,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: color ?? AppColors.textSecondary),
+        Icon(icon, size: 18, color: color ?? colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
             fontSize: 14,
-            color: color ?? AppColors.textSecondary,
+            color: color ?? colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -265,17 +276,19 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   }
 
   Widget _buildTimestamps(Item item) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           '创建时间: ${_formatDateTime(item.createdAt)}',
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 4),
         Text(
           '最后更新: ${_formatDateTime(item.updatedAt)}',
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
         ),
         if (item.completedAt != null) ...[
           const SizedBox(height: 4),
@@ -625,7 +638,7 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
                   icon: const Icon(Icons.delete_outline, size: 18),
                   label: const Text('删除图片'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.overdue,
+                    foregroundColor: Theme.of(context).colorScheme.error,
                   ),
                 ),
               ),
@@ -643,23 +656,34 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
   }
 
   Future<void> _pickImage() async {
-    final imageService = ref.read(imagePickerProvider);
-    final imagePath = await imageService.pickFromGallery();
-    if (imagePath != null) {
-      setState(() {
-        _selectedImagePath = imagePath;
-      });
+    try {
+      final imageService = ref.read(imagePickerProvider);
+      final imagePath = await imageService.pickFromGallery();
+      if (imagePath != null) {
+        setState(() {
+          _selectedImagePath = imagePath;
+        });
+      }
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('选择图片失败: $e')));
     }
   }
 
   Widget _buildBottomActions(Item item) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: colorScheme.surfaceContainerLow,
         boxShadow: [
           BoxShadow(
-            color: AppColors.shadow.withOpacity(0.1),
+            color: colorScheme.shadow.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -681,7 +705,7 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: item.status == ItemStatus.completed
-                      ? AppColors.textSecondary
+                      ? colorScheme.secondary
                       : AppColors.completed,
                   foregroundColor: Colors.white,
                 ),
@@ -722,7 +746,9 @@ class _ItemDetailPageState extends ConsumerState<ItemDetailPage> {
               Navigator.pop(context);
               _deleteItem(item);
             },
-            style: TextButton.styleFrom(foregroundColor: AppColors.overdue),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: const Text('删除'),
           ),
         ],

@@ -130,9 +130,7 @@ Map<String, Map<String, List<Item>>> _buildCells(
 
 bool _shouldShowOnDate(Item item, DateTime date, DateTime today) {
   if (item.dueDate.isBefore(today)) return false;
-
-  final daysUntilDue = item.dueDate.difference(date).inDays;
-  return daysUntilDue >= 0 && daysUntilDue <= 3;
+  return app_utils.DateUtils.isSameDay(item.dueDate, date);
 }
 
 int _compareItems(Item a, Item b) {

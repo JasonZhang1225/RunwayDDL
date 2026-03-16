@@ -23,7 +23,7 @@ class Categories extends _$Categories {
     return repo.getAll();
   }
 
-  Future<void> createCategory(String name, String color) async {
+  Future<Category> createCategory(String name, String color) async {
     final repo = ref.read(categoryRepositoryProvider);
 
     final category = Category(
@@ -36,6 +36,7 @@ class Categories extends _$Categories {
 
     await repo.create(category);
     ref.invalidateSelf();
+    return category;
   }
 
   Future<void> updateCategory(String id, {String? name, String? color}) async {

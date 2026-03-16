@@ -7,16 +7,22 @@ import 'package:runway_ddl/presentation/providers/home_data_provider.dart';
 import 'package:runway_ddl/presentation/providers/view_mode_provider.dart';
 import 'package:runway_ddl/presentation/pages/home/widgets/task_card.dart';
 
+const _matrixSwitchDuration = Duration(milliseconds: 220);
+
 class DateStreamMatrix extends StatelessWidget {
   final MatrixData data;
   final ScrollController? horizontalController;
+  final MatrixMetrics metrics;
+  final VoidCallback? onToggleViewMode;
   final Function(Item)? onItemTap;
   final Function(Item)? onToggleStatus;
 
   const DateStreamMatrix({
     super.key,
     required this.data,
+    required this.metrics,
     this.horizontalController,
+    this.onToggleViewMode,
     this.onItemTap,
     this.onToggleStatus,
   });
@@ -24,11 +30,10 @@ class DateStreamMatrix extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (data.categories.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(context);
     }
 
-    final totalHeight =
-        48.0 + 1.0 + (data.dates.length * 100.0) + (data.dates.length - 1);
+    final totalHeight = metrics.totalHeightForCount(data.dates.length);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -36,25 +41,27 @@ class DateStreamMatrix extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeaderColumn(totalHeight),
-          ..._buildDataColumns(totalHeight),
+          _buildHeaderColumn(context, totalHeight),
+          ..._buildDataColumns(context, totalHeight),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(32),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_note, size: 64, color: AppColors.textHint),
-            SizedBox(height: 16),
+            Icon(Icons.event_note, size: 64, color: colorScheme.onSurfaceVariant),
+            const SizedBox(height: 16),
             Text(
               '暂无分类',
-              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -62,17 +69,19 @@ class DateStreamMatrix extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderColumn(double totalHeight) {
+  Widget _buildHeaderColumn(BuildContext context, double totalHeight) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
-      width: 80,
+      width: metrics.headerWidth,
       height: totalHeight,
       decoration: BoxDecoration(
-        color: AppColors.background,
-        border: Border(right: BorderSide(color: AppColors.divider)),
+        color: colorScheme.surfaceContainerLow,
+        border: Border(right: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Column(
         children: [
-          _buildHeaderCell('日期'),
+          _buildOriginHeader(),
           const Divider(height: 1),
           Expanded(
             child: ListView.builder(
@@ -81,7 +90,7 @@ class DateStreamMatrix extends StatelessWidget {
               itemCount: data.dates.length,
               itemBuilder: (context, index) {
                 final date = data.dates[index];
-                return _buildDateCell(date);
+                return _buildDateCell(context, date);
               },
             ),
           ),
@@ -90,22 +99,28 @@ class DateStreamMatrix extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildDataColumns(double totalHeight) {
+  List<Widget> _buildDataColumns(BuildContext context, double totalHeight) {
     return data.categories.map((category) {
-      return _buildCategoryColumn(category, totalHeight);
+      return _buildCategoryColumn(context, category, totalHeight);
     }).toList();
   }
 
-  Widget _buildCategoryColumn(Category category, double totalHeight) {
+  Widget _buildCategoryColumn(
+    BuildContext context,
+    Category category,
+    double totalHeight,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
-      width: 120,
+      width: metrics.categoryAxisWidth,
       height: totalHeight,
       decoration: BoxDecoration(
-        border: Border(right: BorderSide(color: AppColors.divider)),
+        border: Border(right: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Column(
         children: [
-          _buildCategoryHeader(category),
+          _buildCategoryHeader(context, category),
           const Divider(height: 1),
           Expanded(
             child: ListView.builder(
@@ -115,7 +130,7 @@ class DateStreamMatrix extends StatelessWidget {
               itemBuilder: (context, index) {
                 final date = data.dates[index];
                 final items = data.getItems(date, category);
-                return _buildCell(date, category, items);
+                return _buildCell(context, date, category, items);
               },
             ),
           ),
@@ -124,72 +139,38 @@ class DateStreamMatrix extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderCell(String title) {
-    return Container(
-      height: 48,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
-        ),
-      ),
+  Widget _buildOriginHeader() {
+    return _OriginToggleHeader(
+      height: metrics.headerHeight,
+      onTap: onToggleViewMode,
     );
   }
 
-  Widget _buildDateCell(DateTime date) {
+  Widget _buildDateCell(BuildContext context, DateTime date) {
     final today = app_utils.DateUtils.today();
     final isToday = app_utils.DateUtils.isSameDay(date, today);
-    final weekday = _getWeekdayName(date.weekday);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      height: 100,
+      height: metrics.cellHeight,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: isToday ? AppColors.primaryLight.withOpacity(0.3) : null,
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+        color: isToday
+            ? colorScheme.primaryContainer.withValues(alpha: 0.45)
+            : null,
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '${date.month}/${date.day}',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-              color: isToday ? AppColors.primary : AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            weekday,
-            style: TextStyle(
-              fontSize: 12,
-              color: isToday ? AppColors.primary : AppColors.textSecondary,
-            ),
-          ),
-          if (isToday)
-            Container(
-              margin: const EdgeInsets.only(top: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                '今天',
-                style: TextStyle(fontSize: 10, color: Colors.white),
-              ),
-            ),
-        ],
+      child: _DateAxisLabel(
+        date: date,
+        isToday: isToday,
+        compact: false,
       ),
     );
   }
 
-  Widget _buildCategoryHeader(Category category) {
+  Widget _buildCategoryHeader(BuildContext context, Category category) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     Color categoryColor;
     try {
       final colorHex = category.color.replaceFirst('#', '');
@@ -199,7 +180,7 @@ class DateStreamMatrix extends StatelessWidget {
     }
 
     return Container(
-      height: 48,
+      height: metrics.headerHeight,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
@@ -218,10 +199,10 @@ class DateStreamMatrix extends StatelessWidget {
           Flexible(
             child: Text(
               category.name,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
+                color: colorScheme.onSurface,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -232,16 +213,24 @@ class DateStreamMatrix extends StatelessWidget {
     );
   }
 
-  Widget _buildCell(DateTime date, Category category, List<Item> items) {
+  Widget _buildCell(
+    BuildContext context,
+    DateTime date,
+    Category category,
+    List<Item> items,
+  ) {
     final today = app_utils.DateUtils.today();
     final isToday = app_utils.DateUtils.isSameDay(date, today);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      height: 100,
+      height: metrics.cellHeight,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isToday ? AppColors.primaryLight.withOpacity(0.1) : null,
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+        color: isToday
+            ? colorScheme.primaryContainer.withValues(alpha: 0.18)
+            : null,
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: items.isEmpty
           ? const SizedBox.shrink()
@@ -261,11 +250,6 @@ class DateStreamMatrix extends StatelessWidget {
               },
             ),
     );
-  }
-
-  String _getWeekdayName(int weekday) {
-    const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    return weekdays[weekday - 1];
   }
 }
 
@@ -298,6 +282,7 @@ class TransposedMatrixData {
 class DateStreamMatrixWithMode extends StatelessWidget {
   final MatrixData data;
   final ScrollController? horizontalController;
+  final VoidCallback? onToggleViewMode;
   final Function(Item)? onItemTap;
   final Function(Item)? onToggleStatus;
 
@@ -305,6 +290,7 @@ class DateStreamMatrixWithMode extends StatelessWidget {
     super.key,
     required this.data,
     this.horizontalController,
+    this.onToggleViewMode,
     this.onItemTap,
     this.onToggleStatus,
   });
@@ -313,20 +299,61 @@ class DateStreamMatrixWithMode extends StatelessWidget {
   Widget build(BuildContext context) {
     final viewMode =
         ViewModeScope.of(context)?.viewMode ?? ViewMode.dateVertical;
+    return _ZoomableMatrixViewport(
+      builder: (context, zoomScale) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final viewportWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : MediaQuery.sizeOf(context).width;
+            final metrics = MatrixMetrics.resolve(
+              viewportWidth: viewportWidth,
+              categoryCount: data.categories.length,
+              zoomScale: zoomScale,
+            );
 
-    if (viewMode == ViewMode.categoryVertical) {
-      return _TransposedMatrix(
-        data: _transposeData(data),
-        onItemTap: onItemTap,
-        onToggleStatus: onToggleStatus,
-      );
-    }
+            final matrix = viewMode == ViewMode.categoryVertical
+                ? _TransposedMatrix(
+                    key: const ValueKey(ViewMode.categoryVertical),
+                    data: _transposeData(data),
+                    metrics: metrics,
+                    horizontalController: horizontalController,
+                    onToggleViewMode: onToggleViewMode,
+                    onItemTap: onItemTap,
+                    onToggleStatus: onToggleStatus,
+                  )
+                : DateStreamMatrix(
+                    key: const ValueKey(ViewMode.dateVertical),
+                    data: data,
+                    metrics: metrics,
+                    horizontalController: horizontalController,
+                    onToggleViewMode: onToggleViewMode,
+                    onItemTap: onItemTap,
+                    onToggleStatus: onToggleStatus,
+                  );
 
-    return DateStreamMatrix(
-      data: data,
-      horizontalController: horizontalController,
-      onItemTap: onItemTap,
-      onToggleStatus: onToggleStatus,
+            return AnimatedSwitcher(
+              duration: _matrixSwitchDuration,
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final curved = CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOutCubic,
+                );
+                return FadeTransition(
+                  opacity: curved,
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.97, end: 1.0).animate(curved),
+                    child: child,
+                  ),
+                );
+              },
+              child: matrix,
+            );
+          },
+        );
+      },
     );
   }
 
@@ -370,11 +397,18 @@ class ViewModeScope extends InheritedWidget {
 
 class _TransposedMatrix extends StatelessWidget {
   final TransposedMatrixData data;
+  final MatrixMetrics metrics;
+  final ScrollController? horizontalController;
+  final VoidCallback? onToggleViewMode;
   final Function(Item)? onItemTap;
   final Function(Item)? onToggleStatus;
 
   const _TransposedMatrix({
+    super.key,
     required this.data,
+    required this.metrics,
+    this.horizontalController,
+    this.onToggleViewMode,
     this.onItemTap,
     this.onToggleStatus,
   });
@@ -382,39 +416,38 @@ class _TransposedMatrix extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (data.categories.isEmpty) {
-      return _buildEmptyState();
+      return _buildEmptyState(context);
     }
 
-    final totalHeight =
-        48.0 +
-        1.0 +
-        (data.categories.length * 100.0) +
-        (data.categories.length - 1);
+    final totalHeight = metrics.totalHeightForCount(data.categories.length);
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      controller: horizontalController,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildCategoryHeaderColumn(totalHeight),
+          _buildCategoryHeaderColumn(context, totalHeight),
           ..._buildDateColumns(totalHeight),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(32),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.event_note, size: 64, color: AppColors.textHint),
-            SizedBox(height: 16),
+            Icon(Icons.event_note, size: 64, color: colorScheme.onSurfaceVariant),
+            const SizedBox(height: 16),
             Text(
               '暂无分类',
-              style: TextStyle(fontSize: 16, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
             ),
           ],
         ),
@@ -422,17 +455,19 @@ class _TransposedMatrix extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryHeaderColumn(double totalHeight) {
+  Widget _buildCategoryHeaderColumn(BuildContext context, double totalHeight) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
-      width: 100,
+      width: metrics.categoryAxisWidth,
       height: totalHeight,
       decoration: BoxDecoration(
-        color: AppColors.background,
-        border: Border(right: BorderSide(color: AppColors.divider)),
+        color: colorScheme.surfaceContainerLow,
+        border: Border(right: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Column(
         children: [
-          _buildHeaderCell('分类'),
+          _buildOriginHeader(),
           const Divider(height: 1),
           Expanded(
             child: ListView.builder(
@@ -441,7 +476,7 @@ class _TransposedMatrix extends StatelessWidget {
               itemCount: data.categories.length,
               itemBuilder: (context, index) {
                 final category = data.categories[index];
-                return _buildCategoryRowHeader(category);
+                return _buildCategoryRowHeader(context, category);
               },
             ),
           ),
@@ -452,23 +487,30 @@ class _TransposedMatrix extends StatelessWidget {
 
   List<Widget> _buildDateColumns(double totalHeight) {
     return data.dates.map((date) {
-      return _buildDateColumn(date, totalHeight);
+      return Builder(
+        builder: (context) => _buildDateColumn(context, date, totalHeight),
+      );
     }).toList();
   }
 
-  Widget _buildDateColumn(DateTime date, double totalHeight) {
+  Widget _buildDateColumn(
+    BuildContext context,
+    DateTime date,
+    double totalHeight,
+  ) {
     final today = app_utils.DateUtils.today();
     final isToday = app_utils.DateUtils.isSameDay(date, today);
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      width: 120,
+      width: metrics.dateAxisWidth,
       height: totalHeight,
       decoration: BoxDecoration(
-        border: Border(right: BorderSide(color: AppColors.divider)),
+        border: Border(right: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Column(
         children: [
-          _buildDateHeader(date, isToday),
+          _buildDateHeader(context, date, isToday),
           const Divider(height: 1),
           Expanded(
             child: ListView.builder(
@@ -478,7 +520,7 @@ class _TransposedMatrix extends StatelessWidget {
               itemBuilder: (context, index) {
                 final category = data.categories[index];
                 final items = data.getItems(category, date);
-                return _buildCell(category, date, items, isToday);
+                return _buildCell(context, category, date, items, isToday);
               },
             ),
           ),
@@ -487,23 +529,16 @@ class _TransposedMatrix extends StatelessWidget {
     );
   }
 
-  Widget _buildHeaderCell(String title) {
-    return Container(
-      height: 48,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textPrimary,
-        ),
-      ),
+  Widget _buildOriginHeader() {
+    return _OriginToggleHeader(
+      height: metrics.headerHeight,
+      onTap: onToggleViewMode,
     );
   }
 
-  Widget _buildCategoryRowHeader(Category category) {
+  Widget _buildCategoryRowHeader(BuildContext context, Category category) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     Color categoryColor;
     try {
       final colorHex = category.color.replaceFirst('#', '');
@@ -513,10 +548,10 @@ class _TransposedMatrix extends StatelessWidget {
     }
 
     return Container(
-      height: 100,
+      height: metrics.cellHeight,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -533,10 +568,10 @@ class _TransposedMatrix extends StatelessWidget {
           Flexible(
             child: Text(
               category.name,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
+                color: colorScheme.onSurface,
               ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -547,51 +582,43 @@ class _TransposedMatrix extends StatelessWidget {
     );
   }
 
-  Widget _buildDateHeader(DateTime date, bool isToday) {
-    final weekday = _getWeekdayName(date.weekday);
+  Widget _buildDateHeader(BuildContext context, DateTime date, bool isToday) {
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
-      height: 48,
+      height: metrics.headerHeight,
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: isToday ? AppColors.primaryLight.withOpacity(0.3) : null,
+        color: isToday
+            ? colorScheme.primaryContainer.withValues(alpha: 0.45)
+            : null,
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            '${date.month}/${date.day}',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-              color: isToday ? AppColors.primary : AppColors.textPrimary,
-            ),
-          ),
-          Text(
-            weekday,
-            style: TextStyle(
-              fontSize: 11,
-              color: isToday ? AppColors.primary : AppColors.textSecondary,
-            ),
-          ),
-        ],
+      child: _DateAxisLabel(
+        date: date,
+        isToday: isToday,
+        compact: true,
       ),
     );
   }
 
   Widget _buildCell(
+    BuildContext context,
     Category category,
     DateTime date,
     List<Item> items,
     bool isToday,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
-      height: 100,
+      height: metrics.cellHeight,
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isToday ? AppColors.primaryLight.withOpacity(0.1) : null,
-        border: Border(bottom: BorderSide(color: AppColors.divider)),
+        color: isToday
+            ? colorScheme.primaryContainer.withValues(alpha: 0.18)
+            : null,
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant)),
       ),
       child: items.isEmpty
           ? const SizedBox.shrink()
@@ -612,9 +639,201 @@ class _TransposedMatrix extends StatelessWidget {
             ),
     );
   }
+}
 
-  String _getWeekdayName(int weekday) {
-    const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    return weekdays[weekday - 1];
+class _ZoomableMatrixViewport extends StatefulWidget {
+  final Widget Function(BuildContext context, double zoomScale) builder;
+
+  const _ZoomableMatrixViewport({required this.builder});
+
+  @override
+  State<_ZoomableMatrixViewport> createState() =>
+      _ZoomableMatrixViewportState();
+}
+
+class _ZoomableMatrixViewportState extends State<_ZoomableMatrixViewport> {
+  static const double _minScale = 0.85;
+  static const double _maxScale = 1.65;
+
+  double _zoomScale = 1.0;
+  double _gestureStartScale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      trackpadScrollCausesScale: true,
+      onScaleStart: (_) {
+        _gestureStartScale = _zoomScale;
+      },
+      onScaleUpdate: (details) {
+        final nextScale = (_gestureStartScale * details.scale).clamp(
+          _minScale,
+          _maxScale,
+        );
+
+        if ((nextScale - _zoomScale).abs() < 0.001) {
+          return;
+        }
+
+        setState(() {
+          _zoomScale = nextScale;
+        });
+      },
+      child: widget.builder(context, _zoomScale),
+    );
+  }
+}
+
+class MatrixMetrics {
+  final double headerWidth;
+  final double categoryAxisWidth;
+  final double dateAxisWidth;
+  final double headerHeight;
+  final double cellHeight;
+
+  const MatrixMetrics({
+    required this.headerWidth,
+    required this.categoryAxisWidth,
+    required this.dateAxisWidth,
+    required this.headerHeight,
+    required this.cellHeight,
+  });
+
+  factory MatrixMetrics.resolve({
+    required double viewportWidth,
+    required int categoryCount,
+    required double zoomScale,
+  }) {
+    final resolvedViewportWidth = viewportWidth <= 0 ? 360.0 : viewportWidth;
+    final dateAxisWidth = (108.0 * zoomScale).clamp(92.0, 168.0);
+    final categoryAxisWidth = _resolveCategoryAxisWidth(
+      viewportWidth: resolvedViewportWidth,
+      categoryCount: categoryCount,
+      reservedWidth: dateAxisWidth,
+      zoomScale: zoomScale,
+    );
+
+    return MatrixMetrics(
+      headerWidth: dateAxisWidth,
+      categoryAxisWidth: categoryAxisWidth,
+      dateAxisWidth: dateAxisWidth,
+      headerHeight: (64.0 * zoomScale).clamp(56.0, 88.0),
+      cellHeight: (100.0 * zoomScale).clamp(82.0, 180.0),
+    );
+  }
+
+  double totalHeightForCount(int rowCount) {
+    if (rowCount <= 0) {
+      return headerHeight;
+    }
+
+    return headerHeight + 1.0 + (rowCount * cellHeight) + (rowCount - 1);
+  }
+
+  static double _resolveCategoryAxisWidth({
+    required double viewportWidth,
+    required int categoryCount,
+    required double reservedWidth,
+    required double zoomScale,
+  }) {
+    final safeCount = categoryCount <= 0 ? 1 : categoryCount;
+    final usableWidth = (viewportWidth - reservedWidth - 16.0).clamp(
+      220.0,
+      double.infinity,
+    );
+    final baseWidth = (usableWidth / safeCount).clamp(92.0, 180.0);
+
+    final densityFactor = switch (safeCount) {
+      <= 2 => 1.12,
+      <= 4 => 1.04,
+      >= 8 => 0.92,
+      _ => 1.0,
+    };
+
+    return (baseWidth * densityFactor * zoomScale).clamp(88.0, 240.0);
+  }
+}
+
+class _OriginToggleHeader extends StatelessWidget {
+  final double height;
+  final VoidCallback? onTap;
+
+  const _OriginToggleHeader({
+    required this.height,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: onTap,
+      child: SizedBox(
+        height: height,
+        child: Center(
+          child: Icon(
+            Icons.swap_horiz,
+            size: 18,
+            color: colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DateAxisLabel extends StatelessWidget {
+  final DateTime date;
+  final bool isToday;
+  final bool compact;
+
+  const _DateAxisLabel({
+    required this.date,
+    required this.isToday,
+    required this.compact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final weekday = app_utils.DateUtils.weekdayLabels[date.weekday - 1];
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '${date.month}/${date.day}',
+          style: TextStyle(
+            fontSize: compact ? 13 : 14,
+            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+            color: isToday ? colorScheme.primary : colorScheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          weekday,
+          style: TextStyle(
+            fontSize: compact ? 11 : 12,
+            color: isToday ? colorScheme.primary : colorScheme.onSurfaceVariant,
+          ),
+        ),
+        if (isToday) ...[
+          const SizedBox(height: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              '今天',
+              style: TextStyle(fontSize: 10, color: Colors.white),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
